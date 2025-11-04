@@ -45,18 +45,12 @@
 Aktifkan seluruh node (kecuali router Durin sebagai penghubung antar jaringan) dan pastikan setiap node dapat melakukan konektivitas awal ke internet menggunakan nameserver 192.168.122.1 untuk kebutuhan instalasi paket awal.
 
 #### Step by Step
-🌐 Durin — Router & Gateway Utama
-1️⃣ Atur Nameserver untuk Akses Internet
 ```
-echo "nameserver 192.168.122.1" > /etc/resolv.conf
-echo "nameserver 8.8.8.8" >> /etc/resolv.conf
-```
-2️⃣ Konfigurasi Interface Jaringan
-
-nano /etc/network/interfaces
-```
+# SETUP SEMUA NODE
+# Node Durin
 auto lo
 iface lo inet loopback
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
 
 auto eth0
 iface eth0 inet dhcp
@@ -85,66 +79,183 @@ auto eth5
 iface eth5 inet static
     address 10.79.5.1
     netmask 255.255.255.0
-```
-🧱 Konfigurasi Tiap Node
 
-🔹 Jaringan 1 — Keluarga Manusia
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE -s 10.79.0.0/16
+iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth1 -o eth3 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth3 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth1 -o eth4 -j ACCEPT
+iptables -A FORWARD -i eth4 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth1 -o eth5 -j ACCEPT
+iptables -A FORWARD -i eth5 -o eth1 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth4 -j ACCEPT
+iptables -A FORWARD -i eth4 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth2 -o eth5 -j ACCEPT
+iptables -A FORWARD -i eth5 -o eth2 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth4 -j ACCEPT
+iptables -A FORWARD -i eth4 -o eth3 -j ACCEPT
+iptables -A FORWARD -i eth3 -o eth5 -j ACCEPT
+iptables -A FORWARD -i eth5 -o eth3 -j ACCEPT
+iptables -A FORWARD -i eth4 -o eth5 -j ACCEPT
+iptables -A FORWARD -i eth5 -o eth4 -j ACCEPT
 
-- Elendil (10.79.1.2)
-```
+
+# Node Elendil
 auto eth0
 iface eth0 inet static
     address 10.79.1.2
     netmask 255.255.255.0
     gateway 10.79.1.1
     up echo nameserver 192.168.122.1 > /etc/resolv.conf
-```
-- Isildur (10.79.1.3)
-```
+
+# Node Isildur
 auto eth0
 iface eth0 inet static
     address 10.79.1.3
     netmask 255.255.255.0
     gateway 10.79.1.1
     up echo nameserver 192.168.122.1 > /etc/resolv.conf
-```
-- Anarion (10.79.1.4)
-```
+
+# Node Anarion
 auto eth0
 iface eth0 inet static
     address 10.79.1.4
     netmask 255.255.255.0
     gateway 10.79.1.1
     up echo nameserver 192.168.122.1 > /etc/resolv.conf
-```
-- Miriel (10.79.1.5)
-```
+
+# Node Miriel
 auto eth0
 iface eth0 inet static
     address 10.79.1.5
     netmask 255.255.255.0
     gateway 10.79.1.1
     up echo nameserver 192.168.122.1 > /etc/resolv.conf
-```
-- Amandil (DHCP Client)
-```
+
+# Node Amandil
 auto eth0
 iface eth0 inet dhcp
     up echo nameserver 192.168.122.1 > /etc/resolv.conf
-```
-- Elros (10.79.1.6)
-```
+
+# Node Elros
 auto eth0
 iface eth0 inet static
-    address 10.79.1.6
+    address 10.79.1.7
     netmask 255.255.255.0
     gateway 10.79.1.1
     up echo nameserver 192.168.122.1 > /etc/resolv.conf
-```
-- Khamul (DHCP Fixed)
-```
+
+# Node Gilgalad
 auto eth0
 iface eth0 inet dhcp
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Celebrimbor
+auto eth0
+iface eth0 inet static
+    address 10.79.2.3
+    netmask 255.255.255.0
+    gateway 10.79.2.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Pharazon
+auto eth0
+iface eth0 inet static
+    address 10.79.2.4
+    netmask 255.255.255.0
+    gateway 10.79.2.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Galadriel
+auto eth0
+iface eth0 inet static
+    address 10.79.2.5
+    netmask 255.255.255.0
+    gateway 10.79.2.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Celeborn
+auto eth0
+iface eth0 inet static
+    address 10.79.2.6
+    netmask 255.255.255.0
+    gateway 10.79.2.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Oropher
+auto eth0
+iface eth0 inet static
+    address 10.79.2.7
+    netmask 255.255.255.0
+    gateway 10.79.2.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Khamul (Client-Fixed-Address)
+auto eth0
+iface eth0 inet dhcp
+    hwaddress ether 02:42:dc:08:82:00
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Erendis
+auto eth0
+iface eth0 inet static
+    address 10.79.3.3
+    netmask 255.255.255.0
+    gateway 10.79.3.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Amdir
+auto eth0
+iface eth0 inet static
+    address 10.79.3.4
+    netmask 255.255.255.0
+    gateway 10.79.3.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Aldarion
+auto eth0
+iface eth0 inet static
+    address 10.79.4.2
+    netmask 255.255.255.0
+    gateway 10.79.4.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Palantir
+auto eth0
+iface eth0 inet static
+    address 10.79.4.3
+    netmask 255.255.255.0
+    gateway 10.79.4.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Narvi
+auto eth0
+iface eth0 inet static
+    address 10.79.4.4
+    netmask 255.255.255.0
+    gateway 10.79.4.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+# Node Minastir
+auto eth0
+iface eth0 inet static
+    address 10.79.5.2
+    netmask 255.255.255.0
+    gateway 10.79.5.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+
+
+# TEST
+# Jaga-jaga jika belum install
+apt-get update
+apt-get install -y nano dnsutils lynx htop curl apache2-utils
+
+# Node manapun
+ping -c 3 8.8.8.8
+ping -c 3 google.com
 ```
 
 ## Nomor 2
