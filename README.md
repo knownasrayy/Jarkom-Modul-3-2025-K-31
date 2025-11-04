@@ -267,12 +267,159 @@ Konfigurasikan Aldarion sebagai DHCP Server dan Durin sebagai DHCP Relay. Tetapk
 Pastikan klien menerima IP sesuai kategori dan Durin meneruskan request DHCP ke server.
 
 #### Step by Step
+```
+Aldaron (DHCP Server)
+
+Install DHCP:
+apt-get update
+apt-get install -y isc-dhcp-server
+
+nano /etc/default/isc-dhcp-server
+INTERFACESv4="eth0"
+
+nano /etc/dhcp/dhcpd.conf
+authoritative;
+
+# Subnet 1 - Keluarga Manusia (Switch1)
+subnet 10.79.1.0 netmask 255.255.255.0 {
+    range 10.79.1.6 10.79.1.34;
+    range 10.79.1.68 10.79.1.94;
+    option routers 10.79.1.1;
+    option broadcast-address 10.79.1.255;
+    option domain-name-servers 10.79.3.3;
+}
+
+# Subnet 2 - Keluarga Peri (Switch2)
+subnet 10.79.2.0 netmask 255.255.255.0 {
+    range 10.79.2.35 10.79.2.67;
+    range 10.79.2.96 10.79.2.121;
+    option routers 10.79.2.1;
+    option broadcast-address 10.79.2.255;
+    option domain-name-servers 10.79.3.3;
+}
+
+# Subnet 3 - Fixed Khamul
+subnet 10.79.3.0 netmask 255.255.255.0 {
+    option routers 10.79.3.1;
+    option broadcast-address 10.79.3.255;
+    option domain-name-servers 10.79.3.3;
+}
+
+# Subnet 4 (Aldarion, Palantir, Narvi)
+subnet 10.79.4.0 netmask 255.255.255.0 {
+    option routers 10.79.4.1;
+    option broadcast-address 10.79.4.255;
+    option domain-name-servers 10.79.3.3;
+}
+
+# Subnet 5 (Minastir)
+subnet 10.79.5.0 netmask 255.255.255.0 {
+    option routers 10.79.5.1;
+    option broadcast-address 10.79.5.255;
+    option domain-name-servers 10.79.3.3;
+}
+
+# Fixed-address Khamul
+host Khamul {
+    hardware ethernet 02:42:77:df:5f:00;
+    fixed-address 10.79.3.95;
+}
+
+Restart DHCP SERVER:
+service isc-dhcp-server restart
+service isc-dhcp-server status
+
+Durin jadi DHCP Relay
+
+apt-get install -y isc-dhcp-relay
+
+nano /etc/default/isc-dhcp-relay
+SERVERS="10.79.4.2"
+INTERFACES="eth1 eth2 eth3 eth4 eth5"
+OPTIONS=""
+—--------------------------------------------------------
+echo 'net.ipv4.ip_forward=1' > /etc/sysctl.conf
+sysctl -p
+
+Restart DHCP RELAY:
+service isc-dhcp-relay restart
+
+Konfigurasi di Khamul
+nano /etc/network/interfaces
+auto eth0
+iface eth0 inet dhcp
+
+# Karena sudah diset fixed di DHCP server, dia akan tetap dapat 10.79.3.95.
+
+Tes di Client DHCP
+
+Bikin client kalau error
+echo "nameserver 10.79.3.3" > /etc/resolv.conf
+echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+apt-get update
+apt-get install isc-dhcp-client -y
+
+
+# cek di amandil dan gilgalad apakah sudah dapat IP
+ip a | grep inet
+
+# ping gateway
+ping -c 3 10.79.1.1  # Amandil
+ping -c 3 10.79.2.1  # Gilgalad
+
+# test internet
+ping -c 3 8.8.8.8
+
+IP harus sesuai rentang :
+Amandil → 10.79.1.6–10.79.1.34 atau 10.79.1.68–10.79.1.94
+Gilgalad → 10.79.2.35–10.79.2.67 atau 10.79.2.96–10.79.2.121
+Khamul → tetap 10.79.3.95
+```
 
 ## Nomor 3
 #### Soal (Konfigurasi Forward Proxy)
 Konfigurasikan Minastir sebagai forward proxy sehingga seluruh node (selain Durin) hanya dapat mengakses jaringan eksternal melalui Minastir.
 
 #### Step by Step
+```
+Instalasi Bind9 di Minastir
+apt-get update
+apt-get install -y bind9
+
+Konfigurasi named.conf.options
+nano /etc/bind/named.conf.options
+
+options {
+    directory "/var/cache/bind";
+
+    // DNS Master di Erendis (DNS utama)
+    forwarders {
+        10.79.3.3;       // IP DNS Master (Erendis)
+        192.168.122.1;   // Backup ke nameserver eksternal
+        8.8.8.8;          // Opsional, DNS publik
+    };
+
+    dnssec-validation auto;
+
+    allow-query { any; };
+    listen-on-v6 { any; };
+};
+
+AKTIVASI SERVICE
+ln -s /etc/init.d/named /etc/init.d/bind9
+
+RESTART
+service bind9 restart
+service bind9 status
+
+TES
+dig @10.79.5.2 google.com
+host google.com 10.79.5.2
+ping -c 3 google.com
+
+nslookup k31.com 10.79.5.2
+dig @10.79.5.2 k31.com
+```
 
 ## Nomor 4
 #### Soal (Konfigurasi DNS Master–Slave & Domain Utama)
@@ -281,6 +428,101 @@ Konfigurasikan Erendis sebagai DNS Master dan Amdir sebagai DNS Slave untuk doma
 Pastikan replikasi zona DNS antara master dan slave berfungsi.
 
 #### Step by Step
+```
+# 🖥️ Node: Erendis (10.79.3.3)
+apt-get update
+apt-get install -y bind9 dnsutils
+
+# Buat folder zona
+mkdir -p /etc/bind/zones
+
+
+# 🖥️ Node: Erendis
+nano /etc/bind/named.conf.local
+
+# Tambahkan konfigurasi ini:
+zone "k31.com" { 
+    type master;
+    file "/etc/bind/zones/db.k31.com"; 
+    also-notify { 10.79.3.4; };     // DNS Slave Amdir
+    allow-transfer { 10.79.3.4; };   // Izinkan transfer ke Amdir
+};
+
+zone "3.79.10.in-addr.arpa" { // Reverse zone untuk subnet 10.79.3.x
+    type master;
+    file "/etc/bind/zones/db.10.79.3";
+    also-notify { 10.79.3.4; };
+    allow-transfer { 10.79.3.4; };
+};
+
+
+# 🖥️ Node: Erendis
+nano /etc/bind/named.conf.local
+
+# Tambahkan konfigurasi ini:
+zone "k31.com" { 
+    type master;
+    file "/etc/bind/zones/db.k31.com"; 
+    also-notify { 10.79.3.4; };     // DNS Slave Amdir
+    allow-transfer { 10.79.3.4; };   // Izinkan transfer ke Amdir
+};
+
+zone "3.79.10.in-addr.arpa" { // Reverse zone untuk subnet 10.79.3.x
+    type master;
+    file "/etc/bind/zones/db.10.79.3";
+    also-notify { 10.79.3.4; };
+    allow-transfer { 10.79.3.4; };
+};
+
+# 🖥️ Node: Erendis
+nano /etc/bind/zones/db.10.79.3
+
+$TTL    604800
+@       IN      SOA     ns1.k31.com. root.k31.com. ( 
+                        2025110201  ; Serial (Sama dengan zona maju)
+                        // ... nilai lainnya
+                        604800 )
+
+@       IN      NS      ns1.k31.com. 
+@       IN      NS      ns2.k31.com. 
+
+3       IN      PTR     ns1.k31.com. // 10.79.3.3
+4       IN      PTR     ns2.k31.com. // 10.79.3.4
+
+
+# 🖥️ Node: Erendis
+service bind9 restart
+
+# 🖥️ Node: Amdir (10.79.3.4)
+apt-get update
+apt-get install -y bind9 dnsutils
+
+# Konfigurasi file named.conf.local
+nano /etc/bind/named.conf.local
+
+zone "k31.com" {
+    type slave;
+    masters { 10.79.3.3; }; // Master Erendis
+    file "/var/lib/bind/db.k31.com";
+};
+
+zone "3.79.10.in-addr.arpa" {
+    type slave;
+    masters { 10.79.3.3; };
+    file "/var/lib/bind/db.10.79.3";
+};
+
+# 🖥️ Node: Amdir
+service bind9 restart
+# Verifikasi transfer zona (file db.k31.com dan db.10.79.3 akan muncul di /var/lib/bind)
+ls -l /var/lib/bind | grep k31
+
+# 🖥️ Node: Amdir
+service bind9 restart
+# Verifikasi transfer zona (file db.k31.com dan db.10.79.3 akan muncul di /var/lib/bind)
+ls -l /var/lib/bind | grep k31
+
+```
 
 ## Nomor 5
 #### Soal (Penambahan Alias, PTR, dan TXT Record)
