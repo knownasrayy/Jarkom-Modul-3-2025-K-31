@@ -45,6 +45,107 @@
 Aktifkan seluruh node (kecuali router Durin sebagai penghubung antar jaringan) dan pastikan setiap node dapat melakukan konektivitas awal ke internet menggunakan nameserver 192.168.122.1 untuk kebutuhan instalasi paket awal.
 
 #### Step by Step
+🌐 Durin — Router & Gateway Utama
+1️⃣ Atur Nameserver untuk Akses Internet
+```
+echo "nameserver 192.168.122.1" > /etc/resolv.conf
+echo "nameserver 8.8.8.8" >> /etc/resolv.conf
+```
+2️⃣ Konfigurasi Interface Jaringan
+
+nano /etc/network/interfaces
+```
+auto lo
+iface lo inet loopback
+
+auto eth0
+iface eth0 inet dhcp
+
+auto eth1
+iface eth1 inet static
+    address 10.79.1.1
+    netmask 255.255.255.0
+
+auto eth2
+iface eth2 inet static
+    address 10.79.2.1
+    netmask 255.255.255.0
+
+auto eth3
+iface eth3 inet static
+    address 10.79.3.1
+    netmask 255.255.255.0
+
+auto eth4
+iface eth4 inet static
+    address 10.79.4.1
+    netmask 255.255.255.0
+
+auto eth5
+iface eth5 inet static
+    address 10.79.5.1
+    netmask 255.255.255.0
+```
+🧱 Konfigurasi Tiap Node
+
+🔹 Jaringan 1 — Keluarga Manusia
+
+- Elendil (10.79.1.2)
+```
+auto eth0
+iface eth0 inet static
+    address 10.79.1.2
+    netmask 255.255.255.0
+    gateway 10.79.1.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+```
+- Isildur (10.79.1.3)
+```
+auto eth0
+iface eth0 inet static
+    address 10.79.1.3
+    netmask 255.255.255.0
+    gateway 10.79.1.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+```
+- Anarion (10.79.1.4)
+```
+auto eth0
+iface eth0 inet static
+    address 10.79.1.4
+    netmask 255.255.255.0
+    gateway 10.79.1.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+```
+- Miriel (10.79.1.5)
+```
+auto eth0
+iface eth0 inet static
+    address 10.79.1.5
+    netmask 255.255.255.0
+    gateway 10.79.1.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+```
+- Amandil (DHCP Client)
+```
+auto eth0
+iface eth0 inet dhcp
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+```
+- Elros (10.79.1.6)
+```
+auto eth0
+iface eth0 inet static
+    address 10.79.1.6
+    netmask 255.255.255.0
+    gateway 10.79.1.1
+    up echo nameserver 192.168.122.1 > /etc/resolv.conf
+```
+- Khamul (DHCP Fixed)
+```
+auto eth0
+iface eth0 inet dhcp
+```
 
 ## Nomor 2
 #### Soal (Konfigurasi DHCP Server & Relay)
