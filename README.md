@@ -854,10 +854,125 @@ Fase 3: Worker Isildur (8002) & Anarion (8003) 💻Ulangi langkah Kloning Kode, 
 Pastikan setiap benteng berfungsi secara mandiri. Dari dalam node client masing-masing, gunakan lynx untuk melihat halaman utama Laravel dan curl /api/airing untuk memastikan mereka bisa mengambil data dari Palantir.
 #### Step by Step
 
+Tujuan dari verifikasi ini adalah untuk membuktikan bahwa konfigurasi full stack (DNS, Nginx, PHP, dan MariaDB) yang dilakukan pada Soal No. 8 sudah berfungsi dengan baik di setiap worker (Elendil, Isildur, Anarion) secara mandiri. Verifikasi dilakukan dari node klien (Amandil, Gilgalad, atau Khamul).
+
+A. Uji Fungsionalitas Mandiri (Home Page)
+Pengujian ini menggunakan curl untuk memastikan HTTP status code 200 dikembalikan, menandakan Nginx dan PHP-FPM berfungsi, dan worker dapat diakses melalui nama domain dan port unik.
+
+Perintah Uji (Contoh di Node Klien):
+```
+# 🖥️ Di Node Klien (misalnya Amandil)
+
+echo "--- UJI ELENDIL (8001) ---"
+# Cek status HTTP (harus 200) dan tampilkan 5 baris pertama konten
+curl -s -w "%{http_code}\n" http://elendil.k31.com:8001 | head -n 5
+
+echo "--- UJI ISILDUR (8002) ---"
+curl -s -w "%{http_code}\n" http://isildur.k31.com:8002 | head -n 5
+
+echo "--- UJI ANARION (8003) ---"
+curl -s -w "%{http_code}\n" http://anarion.k31.com:8003 | head -n 5
+```
+
+Hasil yang Diharapkan: Kode status HTTP 200 (OK) harus dikembalikan, diikuti oleh tag HTML awal (misalnya <!DOCTYPE html>), menunjukkan bahwa Nginx dan PHP-FPM berhasil melayani request.
+
+B. Uji Integrasi Database (API /api/airing)
+Ini adalah tes paling penting, membuktikan bahwa kode Laravel di setiap worker berhasil terhubung ke Palantir (Database Server) dan mengembalikan data. Endpoint /api/airing digunakan untuk memastikan data dapat diambil dari Palantir.
+
+Perintah Uji (Contoh di Node Klien):
+Bash
+```
+# 🖥️ Di Node Klien (misalnya Amandil)
+
+echo "--- UJI INTEGRASI DATABASE PALANTIR (API) ---"
+
+# Uji Elendil: Mencari JSON 'success' atau 'data'
+curl -s http://elendil.k31.com:8001/api/airing | grep -E '("success":true|"data":\[)'
+
+# Uji Isildur: Mencari JSON 'success' atau 'data'
+curl -s http://isildur.k31.com:8002/api/airing | grep -E '("success":true|"data":\[)'
+
+# Uji Anarion: Mencari JSON 'success' atau 'data'
+curl -s http://anarion.k31.com:8003/api/airing | grep -E '("success":true|"data":\[)'
+```
+
+Hasil yang Diharapkan: Setiap perintah harus mengembalikan satu baris output yang menunjukkan tag JSON sukses (seperti {"success":true,"data":[...). Ini adalah bukti bahwa semua aspek (DNS, Nginx, PHP, dan MariaDB) telah terintegrasi dengan sukses, dan Soal No. 9 sudah terpenuhi.
+
+
+
+
 ## Nomor 10
 #### Soal
 Pemimpin bijak Elros ditugaskan untuk mengkoordinasikan pertahanan Númenor. Konfigurasikan nginx di Elros untuk bertindak sebagai reverse proxy. Buat upstream bernama kesatria_numenor yang berisi alamat ketiga worker (Elendil, Isildur, Anarion). Atur agar semua permintaan yang datang ke domain elros.<xxxx>.com diteruskan secara merata menggunakan algoritma Round Robin ke backend.
 #### Step by Step
+
+Tujuan: Mengkonfigurasi Elros (10.79.1.7) sebagai Reverse Proxy Nginx untuk mendistribusikan traffic ke tiga worker Laravel menggunakan algoritma Round Robin.
+
+Fase 1: Perbarui DNS (Erendis)
+Pastikan DNS Master (Erendis) memiliki A Record untuk elros.k31.com yang menunjuk ke IP Elros (10.79.1.7).
+```
+Bash
+
+# 🖥️ Node: Erendis (10.79.3.3)
+
+# 1. Edit file zona maju (/etc/bind/zones/db.k31.com)
+# Tambahkan/Ubah baris Elros:
+# elros IN A 10.79.1.7 
+# 2. Wajib: Tingkatkan Serial Number di SOA record (misal: 2025110202)
+# 3. Restart BIND9
+service bind9 restart
+
+# 🖥️ Node: Amdir (10.79.3.4)
+# Reload service untuk sinkronisasi
+service bind9 reload
+```
+
+Fase 2: Konfigurasi Nginx di Elros
+Kita buat upstream bernama kesatria_numenor yang berisi alamat worker.
+```
+# 🖥️ Node: Elros (10.79.1.7)
+
+# 1. Pastikan Nginx terinstal
+apt-get update && apt-get install -y nginx
+
+# 2. Buat file konfigurasi Nginx Load Balancer (/etc/nginx/sites-available/elros-lb.conf)
+cat > /etc/nginx/sites-available/elros-lb.conf << EOF
+upstream kesatria_numenor {
+    # Round Robin adalah default
+    server 10.79.1.2:8001; # Elendil
+    server 10.79.1.3:8002; # Isildur
+    server 10.79.1.4:8003; # Anarion
+}
+
+server {
+    listen 80;
+    server_name elros.k31.com; 
+
+    # Blokir akses IP (Persyaratan Soal 8)
+    if (\$host != \$server_name) {
+        return 404;
+    }
+
+    location / {
+        # Teruskan permintaan ke upstream
+        proxy_pass http://kesatria_numenor;
+
+        # Header yang diperlukan
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+    }
+}
+EOF
+
+# 3. Aktifkan dan Restart Nginx
+ln -s /etc/nginx/sites-available/elros-lb.conf /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default 
+service nginx restart
+
+```
+Bash
+
 
 ## Nomor 11
 #### Soal
@@ -867,10 +982,141 @@ Serangan Penuh: -n 2000 -c 100 (2000 permintaan, 100 bersamaan). Pantau kondisi 
 Strategi Bertahan: Tambahkan weight dalam algoritma, kemudian catat apakah lebih baik atau tidak.
 #### Step by Step
 
+Langkah ini dilakukan dari node klien (Amandil, Gilgalad, atau Khamul) yang sudah memiliki apache2-utils terinstal.
+
+Fase 1: Serangan Awal (Verifikasi Round Robin)
+Tujuan: Memastikan traffic didistribusikan secara merata ke Elendil (8001), Isildur (8002), dan Anarion (8003).
+```
+# 🖥️ Node: Client (Amandil, Gilgalad, atau Khamul)
+
+echo "--- A. SERANGAN AWAL: Verifikasi Round Robin (100 Requests, 10 Concurrency) ---"
+# Serangan Awal: -n 100 permintaan, -c 10 bersamaan
+ab -n 100 -c 10 http://elros.k31.com/api/airing
+
+# Pantau/Verifikasi Log Distribusi
+# 🖥️ Di Node Elendil, Isildur, dan Anarion (Secara bergantian)
+# Output harus menunjukkan request didistribusikan secara merata (~33-34 request per worker).
+tail /var/log/nginx/access.log
+```
+
+
+Fase 2: Serangan Penuh dan Analisis
+Tujuan: Menguji batas ketahanan sistem dengan beban tinggi (2000 requests, 100 concurrency) dan memantau kegagalan.
+```
+Bash
+
+# 🖥️ Node: Client
+echo "--- B. SERANGAN PENUH (2000 Requests, 100 Concurrency) ---"
+ab -n 2000 -c 100 http://elros.k31.com/api/airing
+
+# Pantau Kondisi Worker dan Log Elros
+# 🖥️ Di Node Worker (Elendil, Isildur, Anarion)
+# Gunakan htop untuk melihat penggunaan CPU/Memory selama serangan.
+# htop 
+
+# 🖥️ Di Node Elros (Load Balancer)
+# Periksa log error untuk melihat apakah ada worker yang kewalahan (connection reset / timeout)
+tail /var/log/nginx/error.log
+```
+
+Hasil: Anda perlu mencatat apakah terjadi Request Failed dalam jumlah besar, dan response time rata-rata.
+
+Fase 3: Strategi Bertahan (Implementasi Weight)
+Tujuan: Mengimplementasikan strategi weighted Round Robin untuk melihat apakah distribusi yang tidak merata (mengandalkan worker yang lebih kuat) memberikan kinerja yang lebih baik atau lebih buruk.
+
+1. Implementasi Weight di Elros
+Kita anggap Elendil lebih kuat dan memberinya bobot 3, sementara worker lain tetap 1.
+```
+Bash
+
+# 🖥️ Node: Elros (10.79.1.7)
+
+# Edit konfigurasi Nginx Load Balancer
+nano /etc/nginx/sites-available/elros-lb.conf
+
+# Ubah blok 'upstream' menjadi:
+upstream kesatria_numenor {
+    server 10.79.1.2:8001 weight=3; # Elendil (Bobot lebih besar)
+    server 10.79.1.3:8002;          # Default weight=1
+    server 10.79.1.4:8003;          # Default weight=1
+}
+
+# Restart Nginx
+service nginx restart
+```
+
+2. Uji Ulang Serangan Penuh
+Lakukan serangan yang sama dengan weight yang baru diterapkan.
+```
+Bash
+
+# 🖥️ Node: Client
+echo "--- C. UJI ULANG DENGAN WEIGHT (2000 Requests, 100 Concurrency) ---"
+ab -n 2000 -c 100 http://elros.k31.com/api/airing
+```
+
+Analisis: Bandingkan response time (Requests per second) dan failed requests dari hasil Serangan Penuh (B) dengan hasil Uji Ulang (C). Catat apakah penggunaan weight membuat sistem lebih baik atau tidak.
+
+
+
 ## Nomor 12
 #### Soal
 Para Penguasa Peri (Galadriel, Celeborn, Oropher) membangun taman digital mereka menggunakan PHP. Instal nginx dan php8.4-fpm di setiap node worker PHP. Buat file index.php sederhana di /var/www/html masing-masing yang menampilkan nama hostname mereka. Buat agar akses web hanya bisa melalui domain nama, tidak bisa melalui ip.
 #### Step by Step
+
+Soal No. 12 meminta instalasi Nginx/PHP-FPM, pembuatan index.php yang menampilkan hostname, dan pembatasan akses hanya melalui domain. Soal No. 13  meminta port unik (8004, 8005, 8006) dan konfigurasi Nginx untuk meneruskan .php ke socket PHP-FPM.
+
+Fase 1: Instalasi dan Resource (Soal 12)
+Langkah ini memastikan PHP dan Nginx terinstal dan resource web dasar tersedia di Galadriel (10.79.2.5), Celeborn (10.79.2.6), dan Oropher (10.79.2.7).
+```
+Bash
+
+# 🖥️ Jalankan di Galadriel, Celeborn, dan Oropher
+
+# 1. Instalasi Dasar (Soal 12)
+apt-get update
+apt-get install -y nginx php8.4 php8.4-fpm 
+service php8.4-fpm start; service nginx start
+
+# 2. Siapkan Direktori & File Web (Soal 12: File index.php menampilkan hostname)
+mkdir -p /var/www/html
+chown -R www-data:www-data /var/www/html
+chmod -R 755 /var/www/html
+
+# Buat index.php yang menampilkan hostname di setiap node
+cat > /var/www/html/index.php <<'EOF'
+<?php
+echo "Hostname: " . htmlspecialchars(gethostname(), ENT_QUOTES, 'UTF-8') . "\n";
+?>
+EOF
+```
+
+Fase 2: Konfigurasi Nginx (Port Unik & PHP-FPM) (Soal 12 & 13)
+Langkah ini mengkonfigurasi Nginx di setiap worker dengan port unik (8004, 8005, 8006) dan FastCGI pass ke socket PHP-FPM (Soal 13). Nginx juga membatasi akses via IP (Soal 12).
+
+Konfigurasi Worker: Untuk setiap worker (galadriel, celeborn, oropher), Nginx diatur untuk:
+
+Mendengarkan di port unik (listen 8004, 8005, atau 8006).
+
+Mengarahkan request .php ke unix:/var/run/php/php8.4-fpm.sock.
+
+Memblokir request yang tidak datang dengan server_name yang benar (misalnya if ($host != "galadriel.k31.com") { return 444; }).
+
+Aktivasi: Konfigurasi diaktifkan, dan layanan Nginx/PHP-FPM di-restart.
+
+Fase 3: Verifikasi Fungsionalitas (Selesai)
+Verifikasi akhir (dilakukan dari klien) menunjukkan keberhasilan:
+```
+Bash
+
+# 🖥️ Node: Client (Amandil)
+
+curl http://galadriel.k31.com:8004 # Hasil: Hostname: galadriel (Success)
+curl http://celeborn.k31.com:8005 # Hasil: Hostname: celeborn (Success)
+curl http://10.79.2.5:8004        # Hasil: Ditentukan ditolak (Failure)
+```
+
+Karena verifikasi menunjukkan hostname yang benar dan IP access ditolak, Soal No. 12 selesai 
 
 ## Nomor 13
 #### Soal
