@@ -546,15 +546,308 @@ Client Dinamis Keluarga Peri hanya seperenam jam.
 Batas waktu maksimal peminjaman untuk semua adalah satu jam.
 #### Step by Step
 
+Tujuan dari soal ini adalah untuk menetapkan waktu peminjaman alamat IP (default-lease-time dan max-lease-time) yang berbeda untuk Client Dinamis Keluarga Manusia dan Keluarga Peri, dan memastikan batas waktu maksimal universal (1 jam) diterapkan. Konfigurasi dilakukan pada Aldarion (DHCP Server).
+
+
+1. Konfigurasi Aldarion (DHCP Server) 🏰
+Konfigurasi ini mendefinisikan lease time wajib dan max lease time universal (1 jam / 3600 detik).
+
+File Konfigurasi: /etc/dhcp/dhcpd.conf
+
+```
+Bash
+
+# 🖥️ Node: Aldarion
+
+# Buka file konfigurasi utama
+nano /etc/dhcp/dhcpd.conf
+
+# Isi/Edit bagian Subnet Manusia dan Peri:
+max-lease-time 3600; # Batas maksimal peminjaman untuk semua (1 jam) [cite: 176]
+
+# 🔹 Subnet Keluarga Manusia (10.79.1.0/24)
+# Waktu Peminjaman: ½ jam (30 menit / 1800 detik) 
+subnet 10.79.1.0 netmask 255.255.255.0 {
+    # ... range, router, dan DNS options
+    default-lease-time 1800; 
+    max-lease-time 3600;
+}
+
+# 🔹 Subnet Keluarga Peri (10.79.2.0/24)
+# Waktu Peminjaman: ⅙ jam (10 menit / 600 detik) 
+subnet 10.79.2.0 netmask 255.255.255.0 {
+    # ... range, router, dan DNS options
+    default-lease-time 600; 
+    max-lease-time 3600;
+}
+
+# 🔹 Fixed address untuk Khamul (Soal 2)
+host Khamul {
+    hardware ethernet 02:42:77:df:5f:00;
+    fixed-address 10.79.3.95;
+}
+2. Restart Layanan dan Verifikasi Server
+Layanan harus di-restart agar konfigurasi lease time yang baru diterapkan.
+
+```
+
+
+```
+# 🖥️ Node: Aldarion
+service isc-dhcp-server restart
+service isc-dhcp-server status # Pastikan status 'Active: active (running)'
+
+```
+
+
+
+3. Verifikasi Lease Time di Klien 🧪
+Verifikasi dilakukan pada file leases klien setelah meminta IP baru.
+
+A. Amandil (Client Dinamis Keluarga Manusia)
+
+Target Lease Time: 30 Menit (1800 detik).
+```
+# 🖥️ Node: Amandil
+dhclient -r eth0          # Lepas IP lama
+dhclient eth0             # Minta IP baru
+cat /var/lib/dhcp/dhclient.leases | grep default-lease-time
+# Hasil: default-lease-time 1800;
+```
+
+
+B. Gilgalad (Keluarga Peri)
+
+Target Lease Time: 10 Menit (600 detik).
+
+
+```
+Bash
+# Node: Gilgalad (Client Dinamis Keluarga Peri)
+dhclient -r eth0
+dhclient eth0
+cat /var/lib/dhcp/dhclient.leases | grep default-lease-time
+# Hasil: default-lease-time 600;
+```
+
+
+
+
+
+
+
+
 ## Nomor 7
 #### Soal
 Para Ksatria Númenor (Elendil, Isildur, Anarion) mulai membangun benteng pertahanan digital mereka menggunakan teknologi Laravel. Instal semua tools yang dibutuhkan (php8.4, composer, nginx) dan dapatkan cetak biru benteng dari Resource-laravel di setiap node worker Laravel. Cek dengan lynx di client.
 #### Step by Step
 
+Baik, saya akan memberikan panduan lengkap untuk menyelesaikan Soal No. 7: Membangun Laravel Environment di worker Elendil, Isildur, dan Anarion (Ksatria Númenor), berdasarkan walkthrough yang Anda sediakan.
+
+Karena Anda mengalami kesulitan instalasi sebelumnya, saya akan menyajikan langkah-langkah full command termasuk troubleshooting penginstalan repo PHP.
+
+7. Membangun Benteng Pertahanan Digital (Laravel Workers) 💻
+Tujuan: Menginstal PHP 8.4, Composer, dan Nginx, lalu menyiapkan resource Laravel yang dibutuhkan untuk Soal 8.
+
+Fase 1: Instalasi Tools (Elendil, Isildur, Anarion)
+Lakukan SEMUA langkah di bawah ini pada ketiga worker Laravel (Elendil, Isildur, Anarion).
+
+1. Perbaikan Koneksi dan Instalasi Dasar
+Pastikan worker dapat terhubung ke Internet untuk instalasi.
+```
+Bash
+
+# 🖥️ Di Elendil, Isildur, dan Anarion
+
+# Cek resolusi DNS dan tambahkan nameserver fallback jika gagal
+ping -c 3 google.com || echo "nameserver 8.8.8.8" > /etc/resolv.conf
+
+# Rebuild sources.list (Jika diperlukan karena error apt sebelumnya)
+rm -f /etc/apt/sources.list.d/php.list
+rm -f /etc/apt/sources.list.d/debian.sources
+cat > /etc/apt/sources.list << EOF
+deb http://deb.debian.org/debian stable main contrib non-free
+deb http://deb.debian.org/debian stable-updates main contrib non-free
+deb http://deb.debian.org/debian-security stable-security main contrib non-free
+EOF
+apt-get update
+
+# Instalasi Prasyarat
+apt-get install -y lsb-release ca-certificates curl wget gnupg unzip nginx
+```
+
+2. Instalasi PHP 8.4 dan Composer
+Tambahkan repositori PHP 8.4 Sury untuk instalasi.
+
+Bash
+
+# 🖥️ Di Elendil, Isildur, dan Anarion
+
+# Tambahkan repository PHP 8.4 (Sury)
+```
+mkdir -p /etc/apt/keyrings
+wget -qO /etc/apt/keyrings/sury.gpg https://packages.sury.org/php/apt.gpg
+echo "deb [signed-by=/etc/apt/keyrings/sury.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list
+apt-get update
+
+# Instal PHP 8.4, Composer, dan ekstensi yang diperlukan
+apt-get install -y php8.4 php8.4-cli php8.4-fpm php8.4-mbstring php8.4-xml php8.4-curl composer
+
+# Verifikasi Layanan
+service php8.4-fpm start
+service nginx start
+php -v
+composer -V
+```
+
+Fase 2: Menyiapkan Resource Laravel (Cetak Biru)
+Kita menggunakan kloning resource yang sebenarnya (seperti yang berhasil Anda lakukan sebelumnya) alih-alih simulasi HTML.
+```
+# 🖥️ Di Elendil, Isildur, dan Anarion
+
+# Hapus folder lama dan kloning repository Laravel
+rm -rf /var/www/laravel
+git clone https://github.com/elshiraphine/laravel-simple-rest-api /var/www/laravel
+
+# Instal dependensi dan atur ownership
+cd /var/www/laravel
+composer update --ignore-platform-reqs --no-dev --optimize-autoloader
+chown -R www-data:www-data /var/www/laravel
+```
+Bash
+
+
+Fase 3: Konfigurasi Nginx Dasar (Port 80)
+Konfigurasi Nginx untuk melayani root directory Laravel di port default (80).
+```
+Bash
+
+# 🖥️ Di Elendil, Isildur, dan Anarion
+
+# Konfigurasi Nginx default
+cat > /etc/nginx/sites-available/default << EOF
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    root /var/www/laravel/public; 
+    index index.php index.html;
+
+    server_name _;
+
+    location / {
+        try_files \$uri \$uri/ /index.php?\$query_string; // Laravel routing
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.4-fpm.sock;
+    }
+}
+EOF
+
+# Aktifkan dan restart layanan
+service nginx restart
+```
+
+Fase 4: Verifikasi Awal (Soal 7)
+Uji akses dasar dari klien (Amandil) menggunakan IP address.
+```
+Bash
+
+# 🖥️ Di Node Klien (misal Amandil)
+
+# Instal lynx (jika belum)
+apt-get install -y lynx
+
+# Akses tiap worker via IP:
+echo "--- VERIFIKASI SOAL 7 ---"
+lynx 10.79.1.2 # IP Elendil
+lynx 10.79.1.3 # IP Isildur
+lynx 10.79.1.4 # IP Anarion
+```
+
+Hasil Diharapkan: Akses berhasil menampilkan halaman Laravel.
+
+
+
+
+
+
 ## Nomor 8
 #### Soal
 Setiap benteng Númenor harus terhubung ke sumber pengetahuan, Palantir. Konfigurasikan koneksi database di file .env masing-masing worker. Setiap benteng juga harus memiliki gerbang masuk yang unik; atur nginx agar Elendil mendengarkan di port 8001, Isildur di 8002, dan Anarion di 8003. Jangan lupa jalankan migrasi dan seeding awal dari Elendil. Buat agar akses web hanya bisa melalui domain nama, tidak bisa melalui ip.
 #### Step by Step
+
+Fase 1: Palantir (Database Server - 10.79.4.3) 💾Tujuan: Menginstal MariaDB, membuat database dan user (laravel_db, laravel_user), dan memastikan Palantir mendengarkan di 0.0.0.0 untuk mengatasi Connection refused dari worker
+1.Instalasi MariaDB:
+```
+Bash# 🖥️ Node: Palantir (10.79.4.3)
+apt update -y
+apt install -y mariadb-server mariadb-client
+service mariadb start
+```
+
+2. Membuat Database & User: Membuat laravel_db dan user laravel_user dengan password password123, memberikan hak akses dari jaringan manapun (%)2.
+
+```
+Bash# 🖥️ Node: Palantir
+mysql -u root # Masuk ke MariaDB
+# Setelah masuk, jalankan perintah SQL ini secara manual:
+CREATE DATABASE IF NOT EXISTS laravel_db;
+CREATE USER IF NOT EXISTS 'laravel_user'@'%' IDENTIFIED BY 'password123';
+GRANT ALL PRIVILEGES ON laravel_db.* TO 'laravel_user'@'%';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+3. Memaksa Koneksi Jaringan (Anti Connection Refused): Mengubah bind-address agar MariaDB mendengarkan di 0.0.0.0 dan restart layanan3.Bash
+```
+# 🖥️ Node: Palantir
+# Mengedit bind-address menjadi 0.0.0.0
+sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
+service mariadb restart
+```
+
+Fase 2: Worker Elendil (Kode, Migrasi, Nginx 8001) 💻Elendil (10.79.1.2) adalah worker utama yang menjalankan migrasi
+1. Kloning dan Instalasi Kode: Mengunduh resource Laravel dan mengatasi masalah kompatibilitas PHP 8.45.
+```
+Bash# 🖥️ Node: Elendil (10.79.1.2)
+rm -rf /var/www/laravel
+git clone https://github.com/elshiraphine/laravel-simple-rest-api /var/www/laravel [cite: 218]
+chown -R www-data:www-data /var/www/laravel
+git config --global --add safe.directory /var/www/laravel
+cd /var/www/laravel
+cp .env.example .env
+php artisan key:generate
+composer update --ignore-platform-reqs --no-dev --optimize-autoloader
+```
+
+2. Konfigurasi Database (.env): Mengkonfigurasi koneksi ke Palantir (10.79.4.3) di file .env6.
+```
+Bash# 🖥️ Node: Elendil
+# Edit .env: Set DB_HOST=10.79.4.3, DB_DATABASE=laravel_db, DB_USER=laravel_user, DB_PASS=password123
+```
+
+3. Migrasi Database (HANYA DI ELENDIL): Menjalankan migrasi dan seeding awal7.
+```
+Bash# 🖥️ Node: Elendil
+# *JIKA GAGAL, pastikan IPTABLES port 3306 terbuka di Durin*
+php artisan migrate:fresh --seed
+```
+
+4. Konfigurasi Nginx (Port 8001): Mengatur Nginx agar Elendil mendengarkan di Port 8001 dan hanya bisa diakses melalui nama domain8.
+```
+Bash# 🖥️ Node: Elendil
+# Buat file /etc/nginx/sites-available/elendil (listen 8001, server_name elendil.k31.com)
+ln -s /etc/nginx/sites-available/elendil /etc/nginx/sites-enabled/
+rm -f /etc/nginx/sites-enabled/default
+service nginx restart
+```
+
+Fase 3: Worker Isildur (8002) & Anarion (8003) 💻Ulangi langkah Kloning Kode, Konfigurasi .env, dan Konfigurasi Nginx untuk worker sisa, tetapi JANGAN menjalankan Migrasi9.NodePortDomain (server_name)Isildur (10.79.1.3)8002isildur.k31.comAnarion (10.79.1.4)8003anarion.k31.com
+
+
 
 ## Nomor 9
 #### Soal
